@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyBlock Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#080808;--panel:#111;--panel2:#171717;--slot:#1e1e1e;
+  --border:#2a2a2a;--text:#ddd;--muted:#555;
+  --gold:#ffaa00;--green:#55ff55;--red:#ff5555;
+  --blue:#5599ff;--purple:#cc55ff;--cyan:#55ffff;--pink:#ff55ff;
+  --c-common:#aaa;--c-uncommon:#55ff55;--c-rare:#5599ff;
+  --c-epic:#cc55ff;--c-legendary:#ffaa00;--c-mythic:#ff55ff;
+  --c-divine:#55ffff;--c-special:#ff5555;
+}
+body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);pointer-events:none;z-index:9999;}
+
+.hdr{background:#0a0a0a;border-bottom:2px solid #1c1400;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:200;}
+.logo{font-family:'Press Start 2P',monospace;font-size:13px;color:var(--gold);text-shadow:0 0 18px rgba(255,170,0,.4);letter-spacing:1px;user-select:none;display:flex;align-items:center;gap:10px;}
+.logo-badge{font-family:'Share Tech Mono',monospace;font-size:9px;color:#333;letter-spacing:2px;padding:2px 6px;border:1px solid #222;}
+.hdr-src{font-size:10px;color:#222;}
+
+.search-hero{display:flex;align-items:center;justify-content:center;padding:60px 24px 40px;flex-direction:column;gap:14px;}
+.search-hero.compact{padding:14px 24px;flex-direction:row;gap:12px;border-bottom:1px solid var(--border);justify-content:flex-start;}
+.search-title{font-family:'Press Start 2P',monospace;font-size:10px;color:#252525;letter-spacing:2px;}
+.search-row{display:flex;max-width:460px;width:100%;}
+.search-row.compact{max-width:380px;}
+.search-inp{background:#000;border:2px solid #2a2a2a;border-right:none;color:#ddd;font-family:'Share Tech Mono',monospace;font-size:15px;padding:12px 16px;outline:none;flex:1;transition:border-color .15s;}
+.search-inp.compact{font-size:13px;padding:9px 12px;}
+.search-inp:focus{border-color:var(--gold);}
+.search-inp::placeholder{color:#252525;}
+.search-btn{background:linear-gradient(135deg,#1a4a1a,#0d2d0d);border:2px solid #2d6b2d;color:var(--green);font-family:'Share Tech Mono',monospace;font-size:13px;padding:12px 22px;cursor:pointer;text-transform:uppercase;letter-spacing:2px;white-space:nowrap;transition:all .15s;}
+.search-btn.compact{padding:9px 16px;font-size:12px;}
+.search-btn:hover{background:linear-gradient(135deg,#226022,#153d15);box-shadow:0 0 12px rgba(85,255,85,.2);}
+.search-btn:active{transform:translateY(1px);}
+.search-btn:disabled{opacity:.4;cursor:not-allowed;}
+.search-hint{font-size:10px;color:#1e1e1e;letter-spacing:1px;}
+
+.status{padding:10px 24px;font-size:12px;border-bottom:1px solid transparent;display:flex;align-items:center;gap:8px;}
+.status.loading{background:#0d0a00;border-color:#2a2000;color:var(--gold);}
+.status.error{background:#0d0000;border-color:#3a0000;color:var(--red);}
+.status.ok{background:#000d00;border-color:#002a00;color:var(--green);}
+.status.hide{display:none;}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.tabs{background:#0a0a0a;border-bottom:2px solid var(--border);padding:0 20px;display:flex;gap:2px;flex-wrap:wrap;}
+.tab{background:transparent;border:1px solid transparent;border-bottom:none;color:#444;font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px 18px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;margin-top:6px;transition:all .15s;position:relative;}
+.tab.on{background:#171717;border-color:#333;border-bottom-color:#171717;color:var(--gold);}
+.tab.on::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:#171717;}
+.tab:hover:not(.on){color:#aaa;}
+.tab .tc{font-size:9px;opacity:.6;margin-left:4px;}
+
+.main{padding:16px 24px;}
+.ctrl-bar{display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
+.ctrl-group{display:flex;align-items:center;gap:6px;}
+.ctrl-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.tog-grp{display:flex;}
+.tog{background:#111;border:1px solid #2a2a2a;color:#555;font-family:'Share Tech Mono',monospace;font-size:11px;padding:6px 14px;cursor:pointer;transition:all .1s;}
+.tog:first-child{border-right:none;}.tog:last-child{border-left:none;}
+.tog.on{background:#0d1a0d;border-color:#2d4a2d;color:var(--green);}
+.tog:hover:not(.on){color:#aaa;background:#161616;}
+.filter-inp{background:#000;border:1px solid #2a2a2a;color:#ddd;font-family:'Share Tech Mono',monospace;font-size:12px;padding:6px 10px;outline:none;width:180px;}
+.filter-inp:focus{border-color:#444;}
+.filter-inp::placeholder{color:#252525;}
+
+.summary{background:var(--panel);border:1px solid var(--border);padding:14px 20px;margin-bottom:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;}
+.sstat{display:flex;flex-direction:column;gap:3px;}
+.sstat-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;}
+.sstat-val{font-family:'Press Start 2P',monospace;font-size:12px;color:var(--gold);}
+.sstat-val.sm{font-size:9px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+.filter-row{display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+.filt{background:#111;border:1px solid #222;color:#444;font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 10px;cursor:pointer;}
+.filt.on{background:#0d1a0d;border-color:#2d4a2d;color:var(--green);}
+.filt:hover:not(.on){color:#aaa;}
+
+.section-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:3px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.inv-wrap{margin-bottom:28px;}
+.inv-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;max-width:675px;}
+.inv-grid.cols4{grid-template-columns:repeat(4,1fr);max-width:300px;}
+.inv-grid.cols1{grid-template-columns:1fr;max-width:75px;}
+
+.slot{aspect-ratio:1;background:var(--slot);border-top:2px solid #3a3a3a;border-left:2px solid #3a3a3a;border-bottom:2px solid #111;border-right:2px solid #111;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;min-width:55px;min-height:55px;transition:border-color .1s;}
+.slot.empty{cursor:default;opacity:.3;}
+.slot:not(.empty):hover{border-top-color:var(--gold);border-left-color:var(--gold);border-bottom-color:#553300;border-right-color:#553300;}
+.slot-ic{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.slot-ic.txt{font-size:11px;font-weight:bold;text-align:center;line-height:1.2;}
+.slot-cnt{position:absolute;bottom:2px;right:3px;font-size:9px;color:#fff;text-shadow:1px 1px #000;font-weight:bold;}
+.slot-stars{position:absolute;top:2px;left:3px;font-size:7px;color:var(--gold);line-height:1;text-shadow:0 0 4px var(--gold);}
+.slot-val{position:absolute;bottom:2px;left:3px;font-size:8px;color:var(--gold);opacity:.8;}
+
+.r-UNCOMMON{border-top-color:#1a4a1a!important;border-left-color:#1a4a1a!important;}
+.r-RARE{border-top-color:#1a1a5a!important;border-left-color:#1a1a5a!important;}
+.r-EPIC{border-top-color:#3a1a3a!important;border-left-color:#3a1a3a!important;}
+.r-LEGENDARY{border-top-color:#4a3000!important;border-left-color:#4a3000!important;}
+.r-MYTHIC{border-top-color:#4a1a4a!important;border-left-color:#4a1a4a!important;}
+.r-DIVINE{border-top-color:#003a3a!important;border-left-color:#003a3a!important;}
+.r-SPECIAL{border-top-color:#4a0000!important;border-left-color:#4a0000!important;}
+.r-COMMON .slot-ic{color:var(--c-common);}
+.r-UNCOMMON .slot-ic{color:var(--c-uncommon);}
+.r-RARE .slot-ic{color:var(--c-rare);}
+.r-EPIC .slot-ic{color:var(--c-epic);}
+.r-LEGENDARY .slot-ic{color:var(--c-legendary);}
+.r-MYTHIC .slot-ic{color:var(--c-mythic);}
+.r-DIVINE .slot-ic{color:var(--c-divine);}
+.r-SPECIAL .slot-ic{color:var(--c-special);}
+
+.ward-wrap{display:flex;flex-wrap:wrap;gap:20px;}
+.ward-set{display:flex;flex-direction:column;gap:3px;}
+.ward-set-lbl{font-size:9px;color:#444;text-align:center;margin-bottom:4px;}
+
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;align-items:center;justify-content:center;padding:16px;}
+.modal-bg.show{display:flex;}
+.modal{background:#111;border:1px solid #333;max-width:640px;width:100%;max-height:90vh;overflow-y:auto;position:relative;}
+.modal-hdr{padding:16px 20px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;position:sticky;top:0;background:#111;z-index:1;}
+.modal-name{font-size:14px;line-height:1.4;}
+.modal-id{font-size:10px;color:#444;margin-top:3px;}
+.modal-cls{background:none;border:none;color:#444;font-size:18px;cursor:pointer;padding:2px 6px;}
+.modal-cls:hover{color:#fff;}
+.modal-body{padding:0 20px 20px;}
+.lore-box{background:#0a0a0a;border:1px solid #1e1e1e;padding:10px 14px;font-size:11px;line-height:2;margin:14px 0;}
+.lore-box div{min-height:1.2em;}
+.dsec{margin:16px 0 0;}
+.dsec-title{font-size:9px;color:#444;text-transform:uppercase;letter-spacing:3px;padding:8px 0 6px;border-bottom:1px solid #1e1e1e;margin-bottom:8px;}
+.drow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #141414;font-size:12px;}
+.drow .dk{color:#555;}.drow .dv{color:var(--text);}.drow .dv.gold{color:var(--gold);}
+.price-grid{display:grid;gap:4px;margin-bottom:6px;}
+.price-row{display:flex;justify-content:space-between;padding:5px 8px;background:#0d0d0d;font-size:11px;}
+.price-row .pk{color:#555;}.price-row .pv{color:var(--gold);}
+.price-total{display:flex;justify-content:space-between;padding:8px;background:#0a1500;border:1px solid #1a3a00;font-size:13px;font-weight:bold;margin-top:6px;}
+.price-total .pk{color:var(--green);}.price-total .pv{color:#fff;}
+.enc-list{display:flex;flex-wrap:wrap;gap:4px;padding:4px 0;}
+.enc{display:inline-flex;align-items:center;gap:5px;background:#0d0020;border:1px solid #2a005a;padding:3px 8px;font-size:10px;color:#aa66ff;}
+.enc .ep{color:var(--gold);font-size:9px;opacity:.8;}
+.gem-list{display:flex;flex-wrap:wrap;gap:4px;padding:4px 0;}
+.gem{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid;font-size:10px;}
+.gem-RUBY{background:#1a0008;border-color:#6a001a;color:#ff4466;}
+.gem-SAPPHIRE{background:#00081a;border-color:#001a6a;color:#4488ff;}
+.gem-AMETHYST{background:#0d0020;border-color:#3a006a;color:#cc44ff;}
+.gem-JADE{background:#001a08;border-color:#006a20;color:#44ff88;}
+.gem-AMBER{background:#1a0800;border-color:#6a2800;color:#ffaa33;}
+.gem-TOPAZ{background:#1a1a00;border-color:#6a6a00;color:#ffff44;}
+.gem-OPAL{background:#001a1a;border-color:#006a6a;color:#44ffff;}
+.stars-gold{color:var(--gold);}.stars-pink{color:var(--pink);}
+
+.api-notice{background:#0d0800;border:1px solid #3a2500;padding:20px 24px;margin:24px;font-size:11px;color:#775533;line-height:2;}
+.api-notice strong{color:#aa6633;display:block;margin-bottom:8px;font-family:'Press Start 2P',monospace;font-size:9px;}
+.api-notice code{background:#1a0f00;padding:2px 6px;color:#cc8844;}
+
+.hidden{display:none!important;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#0a0a0a;}
+::-webkit-scrollbar-thumb{background:#2a2a2a;}
+::-webkit-scrollbar-thumb:hover{background:#3a3a3a;}
+@media(max-width:600px){.slot{min-width:32px;min-height:32px;}.slot-ic{width:22px;height:22px;font-size:14px;}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo">⚔ SkyBlock Vault<span class="logo-badge">ANALYZER</span></div>
+  <div class="hdr-src">sky.shiiyu.moe · moulberry.codes</div>
+</div>
+
+<!-- SEARCH — collapses to compact after first scan -->
+<div class="search-hero" id="heroEl">
+  <div class="search-title">INVENTORY ANALYZER</div>
+  <div class="search-row" id="searchRow">
+    <input class="search-inp" id="usernameEl" type="text" placeholder="Enter Minecraft username..." autocomplete="off">
+    <button class="search-btn" id="scanBtn" onclick="doScan()">▶ Scan</button>
+  </div>
+  <div class="search-hint">No API key needed — just your username</div>
+</div>
+
+<div class="status hide" id="statusBar"></div>
+
+<div id="app" class="hidden">
+  <div class="tabs" id="tabsEl"></div>
+  <div class="main">
+    <div class="ctrl-bar">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Price</span>
+        <div class="tog-grp">
+          <button class="tog on" id="mAH" onclick="setMode('ah')">AH/BIN</button>
+          <button class="tog" id="mBZ" onclick="setMode('bz')">BZ Sell</button>
+          <button class="tog" id="mBZB" onclick="setMode('bzb')">BZ Buy</button>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Sort</span>
+        <div class="tog-grp">
+          <button class="tog on" id="sSlot" onclick="setSort('slot')">Slot</button>
+          <button class="tog" id="sVal" onclick="setSort('val')">Value</button>
+          <button class="tog" id="sRar" onclick="setSort('rar')">Rarity</button>
+        </div>
+      </div>
+      <input class="filter-inp" id="filterEl" placeholder="Search items..." oninput="renderView()">
+    </div>
+    <div class="filter-row" id="filterRow"></div>
+    <div class="summary" id="summaryEl"></div>
+    <div id="viewEl"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeMod()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-name" id="modName"></div><div class="modal-id" id="modId"></div></div>
+      <button class="modal-cls" onclick="closeMod()">✕</button>
+    </div>
+    <div class="modal-body" id="modBody"></div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA SOURCES — no API key required from the user
+// • Profile + inventory NBT → sky.shiiyu.moe  (they hold the Hypixel key)
+// • Lowest BIN / AH avgs   → moulberry.codes  (public, no key)
+// • Bazaar                  → sky.shiiyu.moe/api/v2/bazaar (proxied)
+// ─────────────────────────────────────────────────────────────────────────────
+const SKYCRYPT  = 'https://sky.shiiyu.moe/api/v2';
+const MOULBERRY = 'https://moulberry.codes';
+
+const MC_COLORS={'0':'#000','1':'#0055bb','2':'#00aa00','3':'#00aaaa','4':'#aa0000','5':'#aa00aa','6':'#ffaa00','7':'#aaaaaa','8':'#555','9':'#5599ff','a':'#55ff55','b':'#55ffff','c':'#ff5555','d':'#ff55ff','e':'#ffff55','f':'#dddddd'};
+const RARITY_ORD=['COMMON','UNCOMMON','RARE','EPIC','LEGENDARY','MYTHIC','DIVINE','SPECIAL','VERY_SPECIAL'];
+const PET_TIERS={COMMON:0,UNCOMMON:1,RARE:2,EPIC:3,LEGENDARY:4,MYTHIC:5};
+const REFORGE_STONES={fabled:'DRAGON_CLAW',withered:'WITHER_CATALYST',renowned:'RENOWNED_REFORGE_STONE',ancient:'PRECURSOR_REMAINDER',mossy:'OVERGROWN_GRASS',auspicious:'ROCK_GEMSTONE',suspicious:'SUSPICIOUS_VIAL',stellar:'PETRIFIED_STARFALL',heated:'HOT_STUFF',blessed:'BLESSED_FRUIT',cubic:'CUBIC_HULL',gilded:'MIDAS_JEWEL',necrotic:'PRECURSOR_REMNANT',candied:'CANDY_CORN',submerged:'DEEP_SEA_ORB',empowered:'SOULWOVEN',strengthened:'DRAGON_SCALE',wise:'ELDER_BEAD'};
+
+let S={mode:'ah',sort:'slot',tab:'inv',filter:'ALL',inv:{main:[],armor:[],ender:[],wardrobe:[]},bz:{},bin:{},avg:{},currentList:[],scanning:false};
+
+const G=id=>document.getElementById(id);
+
+function setStatus(msg,type='loading'){const el=G('statusBar');el.className=`status ${type}`;el.innerHTML=type==='loading'?`<div class="spin"></div> ${msg}`:msg;}
+function hideStatus(){G('statusBar').className='status hide';}
+
+// ── NBT PARSER ────────────────────────────────────────────────────────────────
+const NBT=(()=>{
+  let buf,view,pos;
+  const r8=()=>view.getUint8(pos++);const ri8=()=>view.getInt8(pos++);
+  const r16=()=>{const v=view.getInt16(pos,false);pos+=2;return v;};
+  const r32=()=>{const v=view.getInt32(pos,false);pos+=4;return v;};
+  const ru32=()=>{const v=view.getUint32(pos,false);pos+=4;return v;};
+  const rf32=()=>{const v=view.getFloat32(pos,false);pos+=4;return v;};
+  const rf64=()=>{const v=view.getFloat64(pos,false);pos+=8;return v;};
+  const r64=()=>{const h=r32(),l=ru32();return h*4294967296+l;};
+  const rStr=()=>{const n=view.getUint16(pos,false);pos+=2;const s=new TextDecoder().decode(new Uint8Array(buf,pos,n));pos+=n;return s;};
+  const rPayload=t=>{
+    if(t===1)return ri8();if(t===2)return r16();if(t===3)return r32();if(t===4)return r64();
+    if(t===5)return rf32();if(t===6)return rf64();
+    if(t===7){const n=r32();const a=[];for(let i=0;i<n;i++)a.push(ri8());return a;}
+    if(t===8)return rStr();
+    if(t===9){const lt=r8(),n=r32();const a=[];for(let i=0;i<n;i++)a.push(rPayload(lt));return a;}
+    if(t===10){const o={};while(true){const ct=r8();if(ct===0)break;const cn=rStr();o[cn]=rPayload(ct);}return o;}
+    if(t===11){const n=r32();const a=[];for(let i=0;i<n;i++)a.push(r32());return a;}
+    if(t===12){const n=r32();const a=[];for(let i=0;i<n;i++)a.push(r64());return a;}
+    return null;
+  };
+  return{parse(b64){const bin=atob(b64);const raw=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)raw[i]=bin.charCodeAt(i);const inf=pako.inflate(raw);buf=inf.buffer.slice(inf.byteOffset,inf.byteOffset+inf.byteLength);view=new DataView(buf);pos=0;const rt=r8();rStr();return rPayload(rt);}};
+})();
+
+function fmt(text){if(!text)return'';let out='',color=null,bold=false,ital=false,ul=false;const flush=t=>{if(!t)return;let st='';if(color)st+=`color:${color};`;if(bold)st+='font-weight:bold;';if(ital)st+='font-style:italic;';if(ul)st+='text-decoration:underline;';const e=t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');out+=st?`<span style="${st}">${e}</span>`:e;};let b='';for(let i=0;i<text.length;i++){if(text[i]==='§'&&i+1<text.length){flush(b);b='';const c=text[i+1].toLowerCase();if(MC_COLORS[c]){color=MC_COLORS[c];bold=ital=ul=false;}else if(c==='l')bold=true;else if(c==='o')ital=true;else if(c==='n')ul=true;else if(c==='r'){color=null;bold=ital=ul=false;}i++;}else b+=text[i];}flush(b);return out;}
+function strip(t){return t?t.replace(/§[0-9a-fk-or]/gi,'').trim():'';}
+function getRarity(lore){if(!lore)return'COMMON';for(const ln of[...lore].reverse()){const s=strip(ln).toUpperCase();for(const r of[...RARITY_ORD].reverse())if(s.includes(r.replace('_',' ')))return r;}return'COMMON';}
+function fmtCoins(n){if(!n||n===0)return'—';if(n>=1e9)return(n/1e9).toFixed(2)+'B';if(n>=1e6)return(n/1e6).toFixed(2)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return Math.round(n).toLocaleString();}
+function rarityColor(r){return{COMMON:'#aaa',UNCOMMON:'#55ff55',RARE:'#5599ff',EPIC:'#cc55ff',LEGENDARY:'#ffaa00',MYTHIC:'#ff55ff',DIVINE:'#55ffff',SPECIAL:'#ff5555',VERY_SPECIAL:'#ff5555'}[r]||'#fff';}
+function starsHTML(n){if(!n)return'';const reg=Math.min(n,5),mas=n>5?n-5:0;return`<span class="stars-gold">${'✪'.repeat(reg)}</span>`+(mas?`<span class="stars-pink">${'✪'.repeat(mas)}</span>`:'');}
+
+function itemEmoji(id){if(!id)return null;const s=id.toLowerCase();
+  if(s.includes('sword')||s.includes('blade')||s.includes('katana')||s.includes('saber')||s.includes('cutlass')||s.includes('scythe'))return'⚔';
+  if(s.includes('bow')&&!s.includes('elbow'))return'🏹';
+  if(s.includes('fishing')||s.includes('rod'))return'🎣';
+  if(s.includes('wand')||s.includes('staff'))return'🪄';
+  if(s.includes('helmet')||s.includes('hood')||s.includes('hat'))return'⛑';
+  if(s.includes('chestplate')||s.includes('vest')||s.includes('tunic'))return'🛡';
+  if(s.includes('legging')||s.includes('pants'))return'👖';
+  if(s.includes('boots')||s.includes('treads'))return'👟';
+  if(s.includes('pickaxe')||s.includes('drill'))return'⛏';
+  if(s.includes('axe'))return'🪓';
+  if(s.includes('hoe')||s.includes('shovel'))return'🌾';
+  if(s.includes('necklace'))return'📿';
+  if(s.includes('ring'))return'💍';
+  if(s.includes('belt'))return'🎗';
+  if(s.includes('cloak')||s.includes('robe'))return'🧥';
+  if(s.includes('bracelet')||s.includes('gauntlet'))return'⌚';
+  if(s.includes('book')||s.includes('tome'))return'📖';
+  if(s.includes('talisman')||s.includes('artifact')||s.includes('orb'))return'🔮';
+  if(s.includes('potion'))return'🧪';if(s.includes('gem'))return'💎';
+  if(s.includes('coin')||s.includes('midas'))return'🪙';if(s.includes('egg'))return'🥚';if(s.includes('cake'))return'🎂';
+  return null;}
+
+function parseGems(g){if(!g)return[];const out=[];for(const[k,v]of Object.entries(g)){if(k==='unlocked_slots'||k.endsWith('_gem'))continue;const type=g[k+'_gem'];if(typeof v==='string'&&type)out.push({slot:k,quality:v,type});else if(v&&typeof v==='object'&&v.quality)out.push({slot:k,quality:v.quality,type:v.gem||type||'UNKNOWN'});}return out;}
+
+function parseItem(raw){if(!raw||!raw.tag)return null;const tag=raw.tag,ea=tag.ExtraAttributes||{},disp=tag.display||{};const lore=disp.Lore||[],name=disp.Name||'';const itemId=ea.id||'';if(!itemId)return null;let petInfo=null;try{if(ea.petInfo)petInfo=JSON.parse(ea.petInfo);}catch{}const ench=ea.enchantments||{};const reforge=ea.modifier||null;const stars=ea.dungeon_item_level||ea.upgrade_level||0;const gems=parseGems(ea.gems);const rarity=getRarity(lore);const count=raw.Count||1;return{itemId,displayName:name,plainName:strip(name),lore,rarity,ench,reforge,stars,isMaster:stars>5,gems,petInfo,count,ea,value:{ah:0,bz:0,bzb:0,enchV:0,gemV:0}};}
+
+function parseInv(data){try{const nbt=NBT.parse(data);return(nbt.i||[]).map(parseItem);}catch(e){return[];}}
+
+// ── PRICING ───────────────────────────────────────────────────────────────────
+function bzPx(id){const p=S.bz[id];if(!p)return null;return{buy:p.buyPrice||p.quick_status?.buyPrice||0,sell:p.sellPrice||p.quick_status?.sellPrice||0};}
+function ahPx(id){return S.bin[id]||S.avg[id]||null;}
+function pickPx(bz,ah){if(S.mode==='bz')return bz?.sell||0;if(S.mode==='bzb')return bz?.buy||0;return ah||0;}
+function getEnchV(name,level){const id=`ENCHANTMENT_${name.toUpperCase()}_${level}`;return{bz:bzPx(id),ah:ahPx(id)};}
+function getGemV(quality,type){const id=`${quality}_${type}_GEM`;return{bz:bzPx(id)||bzPx(`${type}_GEMSTONE`),ah:ahPx(id)||ahPx(`${type}_GEMSTONE`)};}
+function getReforgeV(rf){if(!rf)return null;const sid=REFORGE_STONES[rf.toLowerCase()];if(!sid)return null;return{id:sid,bz:bzPx(sid),ah:ahPx(sid)};}
+function getPetPx(pet){if(!pet)return null;const tier=PET_TIERS[pet.tier]??4;return ahPx(`${pet.type};${tier}`)||null;}
+function computeVal(item){if(!item)return 0;const base={bz:bzPx(item.itemId),ah:ahPx(item.itemId)};let enchV=0;for(const[n,l]of Object.entries(item.ench)){const ev=getEnchV(n,l);enchV+=pickPx(ev.bz,ev.ah);}let gemV=0;for(const g of item.gems){const gv=getGemV(g.quality,g.type);gemV+=pickPx(gv.bz,gv.ah);}const baseV=item.petInfo?(getPetPx(item.petInfo)||0):pickPx(base.bz,base.ah);item.value={ah:base.ah||0,bz:base.bz?.sell||0,bzb:base.bz?.buy||0,enchV,gemV,base:baseV};return baseV+enchV+gemV;}
+
+// ── SLOT ──────────────────────────────────────────────────────────────────────
+function slotHTML(item,idx){if(!item||!item.itemId)return`<div class="slot empty"></div>`;const total=computeVal(item);const color=rarityColor(item.rarity);const em=itemEmoji(item.itemId);const icStyle=em?'':`color:${color};font-size:11px;text-align:center;line-height:1.2;`;const ic=em||item.plainName?.slice(0,3)||'?';const stars=item.stars>0?`<div class="slot-stars">${starsHTML(item.stars)}</div>`:'';const cnt=item.count>1?`<div class="slot-cnt">${item.count}</div>`:'';const val=total>0?`<div class="slot-val">${fmtCoins(total)}</div>`:'';return`<div class="slot r-${item.rarity}" onclick="openModal(${idx})" title="${item.plainName}"><div class="slot-ic${em?'':' txt'}" style="${icStyle}">${ic}</div>${stars}${cnt}${val}</div>`;}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+const TABS=[{id:'inv',lbl:'🎒 Inventory',key:'main'},{id:'armor',lbl:'🛡 Armor',key:'armor'},{id:'ender',lbl:'📦 Ender Chest',key:'ender'},{id:'wardrobe',lbl:'🧣 Wardrobe',key:'wardrobe'}];
+function renderTabs(){G('tabsEl').innerHTML=TABS.map(t=>{const cnt=(S.inv[t.key]||[]).filter(i=>i?.itemId).length;return`<button class="tab${S.tab===t.id?' on':''}" onclick="switchTab('${t.id}')">${t.lbl}<span class="tc">${cnt}</span></button>`;}).join('');}
+function switchTab(id){S.tab=id;renderTabs();S.filter='ALL';renderView();}
+function setMode(m){S.mode=m;['AH','BZ','BZB'].forEach(x=>{const el=G('m'+x);if(el)el.classList.toggle('on',x.toLowerCase()===m);});renderView();}
+function setSort(s){S.sort=s;['Slot','Val','Rar'].forEach(x=>{const el=G('s'+x);if(el)el.classList.toggle('on',x.toLowerCase()===s);});renderView();}
+function setFilter(f){S.filter=f;renderView();}
+
+function getTabItems(){return S.inv[{inv:'main',armor:'armor',ender:'ender',wardrobe:'wardrobe'}[S.tab]]||[];}
+function applySort(arr){if(S.sort==='val')return[...arr].sort((a,b)=>{if(!a?.itemId)return 1;if(!b?.itemId)return-1;return computeVal(b)-computeVal(a);});if(S.sort==='rar')return[...arr].sort((a,b)=>{if(!a?.itemId)return 1;if(!b?.itemId)return-1;return RARITY_ORD.indexOf(b.rarity)-RARITY_ORD.indexOf(a.rarity);});return arr;}
+function applySearch(arr){const q=(G('filterEl')?.value||'').toLowerCase().trim();let out=arr;if(S.filter!=='ALL'){const fi=S.filter;out=out.map(it=>{if(!it?.itemId)return it;const id=it.itemId.toLowerCase();if(fi==='WEAPON'&&(id.includes('sword')||id.includes('bow')||id.includes('blade')||id.includes('wand')||id.includes('axe')||id.includes('staff')||id.includes('saber')||id.includes('scythe')))return it;if(fi==='ARMOR'&&(id.includes('helmet')||id.includes('chestplate')||id.includes('legging')||id.includes('boots')||id.includes('hood')||id.includes('hat')||id.includes('vest')||id.includes('tunic')||id.includes('treads')||id.includes('pants')))return it;if(fi==='PET'&&it.petInfo)return it;if(fi==='ACCESSORY'&&(id.includes('talisman')||id.includes('ring')||id.includes('belt')||id.includes('necklace')||id.includes('cloak')||id.includes('bracelet')||id.includes('artifact')||id.includes('orb')))return it;if(fi==='TOOL'&&(id.includes('pickaxe')||id.includes('drill')||id.includes('hoe')||id.includes('shovel')||id.includes('fishing')||id.includes('rod')))return it;return null;});}if(q)out=out.map(it=>{if(!it?.itemId)return it;return(it.plainName?.toLowerCase().includes(q)||it.itemId.toLowerCase().includes(q))?it:null;});return out;}
+
+function renderSummary(items){const real=items.filter(i=>i?.itemId);const total=real.reduce((s,i)=>s+computeVal(i),0);const top=real.slice().sort((a,b)=>computeVal(b)-computeVal(a))[0];const enchCnt=real.reduce((s,i)=>s+Object.keys(i.ench).length,0);const starCnt=real.filter(i=>i.stars>0).length;G('summaryEl').innerHTML=`<div class="sstat"><div class="sstat-lbl">Items</div><div class="sstat-val">${real.length}</div></div><div class="sstat"><div class="sstat-lbl">Total Value</div><div class="sstat-val">${fmtCoins(total)}</div></div><div class="sstat"><div class="sstat-lbl">Most Valuable</div><div class="sstat-val sm" title="${top?.plainName||''}">${top?.plainName||'—'}</div></div><div class="sstat"><div class="sstat-lbl">Starred Items</div><div class="sstat-val">${starCnt}</div></div><div class="sstat"><div class="sstat-lbl">Enchants</div><div class="sstat-val">${enchCnt}</div></div><div class="sstat"><div class="sstat-lbl">Price Mode</div><div class="sstat-val" style="font-size:9px;color:#55ff55;">${S.mode==='ah'?'AH/BIN':S.mode==='bz'?'BZ Sell':'BZ Buy'}</div></div>`;}
+function renderFilters(){const opts=['ALL','WEAPON','ARMOR','PET','ACCESSORY','TOOL'];G('filterRow').innerHTML=opts.map(f=>`<button class="filt${S.filter===f?' on':''}" onclick="setFilter('${f}')">${f}</button>`).join('');}
+
+function renderView(){const raw=getTabItems();const sorted=applySort(raw);const filtered=applySearch(sorted);S.currentList=filtered;renderSummary(filtered);renderFilters();
+  if(S.tab==='wardrobe'){const sets=[];for(let i=0;i<filtered.length;i+=4)sets.push(filtered.slice(i,i+4));let h='<div class="inv-wrap"><div class="section-lbl">Wardrobe Armor Sets</div><div class="ward-wrap">';sets.forEach((set,si)=>{h+=`<div class="ward-set"><div class="ward-set-lbl">Set ${si+1}</div><div class="inv-grid cols1">`;set.forEach((it,ii)=>{h+=slotHTML(it,si*4+ii);});h+='</div></div>';});h+='</div></div>';G('viewEl').innerHTML=h;return;}
+  if(S.tab==='armor'){let h='<div class="inv-wrap"><div class="section-lbl">Armor (Helmet → Boots)</div><div class="inv-grid cols4">';filtered.forEach((it,i)=>{h+=slotHTML(it,i);});h+='</div></div>';G('viewEl').innerHTML=h;return;}
+  let h=`<div class="inv-wrap"><div class="section-lbl">${S.tab==='inv'?'Main Inventory (36 slots)':'Ender Chest'}</div><div class="inv-grid">`;filtered.forEach((it,i)=>{h+=slotHTML(it,i);});h+='</div></div>';G('viewEl').innerHTML=h;}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal(idx){const item=S.currentList[idx];if(!item?.itemId)return;const color=rarityColor(item.rarity);G('modName').innerHTML=`<span style="color:${color}">${fmt(item.displayName)}</span>`;G('modId').textContent=`${item.itemId} · ${item.rarity}${item.stars>0?' · '+item.stars+'★':''}`;const base={bz:bzPx(item.itemId),ah:ahPx(item.itemId)};const total=computeVal(item);const rfStone=item.reforge?getReforgeV(item.reforge):null;let b='';
+  if(item.lore.length){b+='<div class="lore-box">';item.lore.forEach(ln=>{b+=`<div>${fmt(ln)||'&nbsp;'}</div>`;});b+='</div>';}
+  b+='<div class="dsec"><div class="dsec-title">Item Details</div>';
+  if(item.stars>0)b+=`<div class="drow"><span class="dk">Stars</span><span class="dv gold">${starsHTML(item.stars)} (${item.stars}/10${item.isMaster?' — Master Stars':''})</span></div>`;
+  if(item.reforge){const rfpx=rfStone?(rfStone.bz?.sell||rfStone.ah||0):0;b+=`<div class="drow"><span class="dk">Reforge</span><span class="dv">${item.reforge}${rfpx>0?` <span style="color:var(--gold);font-size:10px;">(Stone ~${fmtCoins(rfpx)})</span>`:''}</span></div>`;}
+  if(item.count>1)b+=`<div class="drow"><span class="dk">Stack</span><span class="dv">${item.count}</span></div>`;
+  b+='</div>';
+  if(item.petInfo){const pp=getPetPx(item.petInfo);b+='<div class="dsec"><div class="dsec-title">Pet Info</div>';b+=`<div class="drow"><span class="dk">Type</span><span class="dv">${item.petInfo.type||'?'}</span></div>`;b+=`<div class="drow"><span class="dk">Tier</span><span class="dv" style="color:${rarityColor(item.petInfo.tier||'COMMON')}">${item.petInfo.tier||'?'}</span></div>`;if(item.petInfo.level!==undefined)b+=`<div class="drow"><span class="dk">Level</span><span class="dv gold">${item.petInfo.level}</span></div>`;if(item.petInfo.heldItem)b+=`<div class="drow"><span class="dk">Held Item</span><span class="dv">${item.petInfo.heldItem}</span></div>`;if(item.petInfo.candyUsed!==undefined)b+=`<div class="drow"><span class="dk">Candy Used</span><span class="dv">${item.petInfo.candyUsed}</span></div>`;if(pp)b+=`<div class="drow"><span class="dk">AH Est.</span><span class="dv gold">${fmtCoins(pp)}</span></div>`;b+='</div>';}
+  const enchKeys=Object.keys(item.ench);if(enchKeys.length){b+=`<div class="dsec"><div class="dsec-title">Enchantments (${enchKeys.length})</div><div class="enc-list">`;for(const[n,l]of Object.entries(item.ench)){const ev=getEnchV(n,l);const px=ev.bz?.sell||ev.ah||0;const label=n.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())+' '+l;b+=`<span class="enc">${label}${px>0?`<span class="ep">${fmtCoins(px)}</span>`:''}</span>`;}b+='</div></div>';}
+  if(item.gems.length){b+=`<div class="dsec"><div class="dsec-title">Gemstones (${item.gems.length})</div><div class="gem-list">`;for(const g of item.gems){const gv=getGemV(g.quality,g.type);const px=gv.bz?.sell||gv.ah||0;b+=`<span class="gem gem-${g.type}">${g.quality} ${g.type}${px>0?` <span style="color:var(--gold);font-size:9px;">${fmtCoins(px)}</span>`:''}</span>`;}b+='</div></div>';}
+  b+='<div class="dsec"><div class="dsec-title">Price Breakdown</div><div class="price-grid">';
+  if(base.ah)b+=`<div class="price-row"><span class="pk">AH Lowest BIN</span><span class="pv">${fmtCoins(base.ah)}</span></div>`;
+  if(base.bz){b+=`<div class="price-row"><span class="pk">BZ Sell Order</span><span class="pv">${fmtCoins(base.bz.sell)}</span></div>`;b+=`<div class="price-row"><span class="pk">BZ Buy Order</span><span class="pv">${fmtCoins(base.bz.buy)}</span></div>`;}
+  if(item.value.enchV>0)b+=`<div class="price-row"><span class="pk">Enchantments (${enchKeys.length})</span><span class="pv">+${fmtCoins(item.value.enchV)}</span></div>`;
+  if(item.value.gemV>0)b+=`<div class="price-row"><span class="pk">Gemstones (${item.gems.length})</span><span class="pv">+${fmtCoins(item.value.gemV)}</span></div>`;
+  if(rfStone){const rfpx=rfStone.bz?.sell||rfStone.ah||0;if(rfpx>0)b+=`<div class="price-row"><span class="pk">Reforge Stone</span><span class="pv">${fmtCoins(rfpx)}</span></div>`;}
+  b+=`</div><div class="price-total"><span class="pk">≈ Total (${S.mode.toUpperCase()})</span><span class="pv">${fmtCoins(total)}</span></div></div>`;
+  G('modBody').innerHTML=b;G('modalBg').classList.add('show');}
+function closeMod(){G('modalBg').classList.remove('show');}
+
+// ── SCAN ──────────────────────────────────────────────────────────────────────
+async function doScan(){
+  if(S.scanning)return;
+  const user=G('usernameEl').value.trim();
+  if(!user){setStatus('⚠ Enter a Minecraft username','error');return;}
+  S.scanning=true;G('scanBtn').disabled=true;G('app').classList.add('hidden');
+
+  // Collapse hero
+  const hero=G('heroEl'),sr=G('searchRow'),si=G('usernameEl'),sb=G('scanBtn');
+  hero.classList.add('compact');sr.classList.add('compact');si.classList.add('compact');sb.classList.add('compact');
+
+  try{
+    // ── Step 1: profile + inventory NBT from SkyCrypt ──────────────────────
+    setStatus(`Fetching profile for ${user}...`);
+    const resp=await fetch(`${SKYCRYPT}/profile/${encodeURIComponent(user)}`);
+    if(!resp.ok){
+      const msg=resp.status===404?`Player "${user}" not found`:resp.status===429?'Rate limited — wait a moment and try again':`SkyCrypt returned HTTP ${resp.status}`;
+      throw new Error(msg);
+    }
+    const data=await resp.json();
+    if(data.error)throw new Error(data.error);
+
+    // SkyCrypt /api/v2/profile/{name} returns the selected profile's member data
+    // Inventory is under data.members[uuid].inventory or nested structures
+    const uuid=data.uuid||data.profile?.uuid;
+    const memberData=uuid&&data.members?.[uuid]||data.member||data;
+    const invRoot=memberData?.inventory||memberData?.inv||data?.inventory||null;
+
+    // If no inventory data at all — player likely has API off
+    if(!invRoot&&!memberData?.inv_contents){
+      G('app').classList.remove('hidden');
+      G('tabsEl').innerHTML='';G('summaryEl').innerHTML='';G('filterRow').innerHTML='';
+      G('viewEl').innerHTML=`<div class="api-notice">
+        <strong>⚠ Inventory API Disabled</strong>
+        This player has their Inventory API turned off.<br>
+        They need to enable it in-game: <code>/settings → SkyBlock → API Settings → Inventory</code>
+      </div>`;
+      hideStatus();S.scanning=false;G('scanBtn').disabled=false;return;
+    }
+
+    setStatus('Parsing inventory data...');
+    const getSection=key=>{
+      const d=invRoot?.[key]?.data||memberData?.[key]?.data||data?.[key]?.data||null;
+      return d?parseInv(d):[];
+    };
+    S.inv.main    =getSection('inv_contents');
+    S.inv.armor   =getSection('armor_contents').reverse();
+    S.inv.ender   =getSection('ender_chest_contents');
+    S.inv.wardrobe=getSection('wardrobe_contents');
+
+    // ── Step 2: Bazaar via SkyCrypt (no key) ──────────────────────────────
+    setStatus('Fetching Bazaar prices...');
+    try{
+      const bzResp=await fetch(`${SKYCRYPT}/bazaar`);
+      if(bzResp.ok)S.bz=await bzResp.json();
+    }catch(e){console.warn('Bazaar fetch failed');}
+
+    // ── Step 3: AH prices from Moulberry (always public) ──────────────────
+    setStatus('Fetching AH prices...');
+    const[binR,avgR]=await Promise.allSettled([
+      fetch(`${MOULBERRY}/lowestbin.json`).then(r=>r.json()),
+      fetch(`${MOULBERRY}/auction_averages_lbin.json`).then(r=>r.json()),
+    ]);
+    if(binR.status==='fulfilled'&&binR.value)S.bin=binR.value;
+    if(avgR.status==='fulfilled'&&avgR.value)S.avg=avgR.value;
+
+    setStatus('Done!','ok');
+    renderTabs();renderView();
+    G('app').classList.remove('hidden');
+    setTimeout(hideStatus,2000);
+
+  }catch(e){
+    setStatus('❌ '+e.message,'error');
+    hero.classList.remove('compact');sr.classList.remove('compact');si.classList.remove('compact');sb.classList.remove('compact');
+  }
+  S.scanning=false;G('scanBtn').disabled=false;
+}
+
+window.addEventListener('load',()=>{
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMod();});
+  G('usernameEl').addEventListener('keydown',e=>{if(e.key==='Enter')doScan();});
+});
+</script>
+</body>
+</html>
