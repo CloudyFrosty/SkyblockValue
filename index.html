@@ -225,9 +225,42 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 // • Profile + inventory NBT → sky.shiiyu.moe  (they hold the Hypixel key)
 // • Lowest BIN / AH avgs   → moulberry.codes  (public, no key)
 // • Bazaar                  → sky.shiiyu.moe/api/v2/bazaar (proxied)
+//
+// All requests go through CORS proxies because browsers block cross-origin
+// requests to APIs that don't explicitly allow them. Multiple proxies are
+// tried in order so if one is down the next takes over automatically.
 // ─────────────────────────────────────────────────────────────────────────────
 const SKYCRYPT  = 'https://sky.shiiyu.moe/api/v2';
 const MOULBERRY = 'https://moulberry.codes';
+
+// CORS proxy list — tried in order, first success wins
+const PROXIES = [
+  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+];
+
+// Moulberry & other truly-public APIs that already send CORS headers — fetch direct
+const DIRECT_DOMAINS = ['moulberry.codes'];
+
+async function xfetch(url) {
+  const isDirect = DIRECT_DOMAINS.some(d => url.includes(d));
+  if (isDirect) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+  // Try each proxy in turn
+  let lastErr;
+  for (const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy(url));
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } catch(e) { lastErr = e; }
+  }
+  throw lastErr || new Error('All proxies failed');
+}
 
 const MC_COLORS={'0':'#000','1':'#0055bb','2':'#00aa00','3':'#00aaaa','4':'#aa0000','5':'#aa00aa','6':'#ffaa00','7':'#aaaaaa','8':'#555','9':'#5599ff','a':'#55ff55','b':'#55ffff','c':'#ff5555','d':'#ff55ff','e':'#ffff55','f':'#dddddd'};
 const RARITY_ORD=['COMMON','UNCOMMON','RARE','EPIC','LEGENDARY','MYTHIC','DIVINE','SPECIAL','VERY_SPECIAL'];
@@ -370,13 +403,13 @@ async function doScan(){
   try{
     // ── Step 1: profile + inventory NBT from SkyCrypt ──────────────────────
     setStatus(`Fetching profile for ${user}...`);
-    const resp=await fetch(`${SKYCRYPT}/profile/${encodeURIComponent(user)}`);
-    if(!resp.ok){
-      const msg=resp.status===404?`Player "${user}" not found`:resp.status===429?'Rate limited — wait a moment and try again':`SkyCrypt returned HTTP ${resp.status}`;
-      throw new Error(msg);
+    let data;
+    try {
+      data = await xfetch(`${SKYCRYPT}/profile/${encodeURIComponent(user)}`);
+    } catch(e) {
+      throw new Error(`Could not reach sky.shiiyu.moe — ${e.message}`);
     }
-    const data=await resp.json();
-    if(data.error)throw new Error(data.error);
+    if(data?.error) throw new Error(data.error);
 
     // SkyCrypt /api/v2/profile/{name} returns the selected profile's member data
     // Inventory is under data.members[uuid].inventory or nested structures
@@ -409,15 +442,14 @@ async function doScan(){
     // ── Step 2: Bazaar via SkyCrypt (no key) ──────────────────────────────
     setStatus('Fetching Bazaar prices...');
     try{
-      const bzResp=await fetch(`${SKYCRYPT}/bazaar`);
-      if(bzResp.ok)S.bz=await bzResp.json();
-    }catch(e){console.warn('Bazaar fetch failed');}
+      S.bz = await xfetch(`${SKYCRYPT}/bazaar`);
+    }catch(e){console.warn('Bazaar fetch failed',e);}
 
     // ── Step 3: AH prices from Moulberry (always public) ──────────────────
     setStatus('Fetching AH prices...');
     const[binR,avgR]=await Promise.allSettled([
-      fetch(`${MOULBERRY}/lowestbin.json`).then(r=>r.json()),
-      fetch(`${MOULBERRY}/auction_averages_lbin.json`).then(r=>r.json()),
+      xfetch(`${MOULBERRY}/lowestbin.json`),
+      xfetch(`${MOULBERRY}/auction_averages_lbin.json`),
     ]);
     if(binR.status==='fulfilled'&&binR.value)S.bin=binR.value;
     if(avgR.status==='fulfilled'&&avgR.value)S.avg=avgR.value;
